@@ -33,6 +33,15 @@ done
 mkdir -p "$PREFIX/share/applications"
 sed "s|@EXEC@|$PREFIX/bin/camera-studio|" "$SRC/data/$APP_ID.desktop.in" > "$PREFIX/share/applications/$APP_ID.desktop"
 command -v update-desktop-database >/dev/null && update-desktop-database "$PREFIX/share/applications" 2>/dev/null || true
+# Become the default video player only for formats nothing else handles yet;
+# existing choices (e.g. a browser for WebM) are left alone.
+if command -v xdg-mime >/dev/null; then
+    for mime in $(sed -n 's/^MimeType=//p' "$PREFIX/share/applications/$APP_ID.desktop" | tr ';' ' '); do
+        if [ -z "$(xdg-mime query default "$mime" 2>/dev/null)" ]; then
+            xdg-mime default "$APP_ID.desktop" "$mime" && echo "Default app for $mime: Camera Studio"
+        fi
+    done
+fi
 command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q -t "$PREFIX/share/icons/hicolor" 2>/dev/null || true
 
 if command -v vainfo >/dev/null && vainfo 2>/dev/null | grep -q VAProfileJPEGBaseline; then

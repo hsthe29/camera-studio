@@ -36,17 +36,21 @@ enum DevMode {
     Probe,
     RecordTest,
     UiTour,
+    Snapshot,
 }
 
 struct Options {
     test_source: bool,
     dev: Option<(DevMode, PathBuf)>,
+    /// Files or URIs to open in the viewer (from "Open With" or the command line).
+    files: Vec<String>,
 }
 
 fn parse_args() -> Result<Options, glib::ExitCode> {
     let mut opts = Options {
         test_source: false,
         dev: None,
+        files: Vec::new(),
     };
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -56,12 +60,14 @@ fn parse_args() -> Result<Options, glib::ExitCode> {
                 return Err(glib::ExitCode::SUCCESS);
             }
             "-t" | "--test-source" => opts.test_source = true,
-            "--self-test" | "--bench" | "--probe" | "--record-test" | "--ui-tour" => {
+            "--self-test" | "--bench" | "--probe" | "--record-test" | "--ui-tour"
+            | "--snapshot" => {
                 let mode = match arg.as_str() {
                     "--self-test" => DevMode::SelfTest,
                     "--bench" => DevMode::Bench,
                     "--probe" => DevMode::Probe,
                     "--ui-tour" => DevMode::UiTour,
+                    "--snapshot" => DevMode::Snapshot,
                     _ => DevMode::RecordTest,
                 };
                 let Some(dir) = args.next() else {
@@ -72,14 +78,15 @@ fn parse_args() -> Result<Options, glib::ExitCode> {
             }
             "-h" | "--help" => {
                 println!(
-                    "Usage: camera-studio [OPTION]\n\n  -t, --test-source   Add a test video source (no camera needed)\n      --version       Show the version\n  -h, --help          Show this help"
+                    "Usage: camera-studio [OPTION…] [FILE…]\n\nOpens the camera, or plays/shows the given photos and videos.\n\n  -t, --test-source   Add a test video source (no camera needed)\n      --version       Show the version\n  -h, --help          Show this help"
                 );
                 return Err(glib::ExitCode::SUCCESS);
             }
-            other => {
+            other if other.starts_with('-') && other.len() > 1 => {
                 eprintln!("Unknown option: {other} (see --help)");
                 return Err(glib::ExitCode::FAILURE);
             }
+            file => opts.files.push(file.to_string()),
         }
     }
     Ok(opts)
@@ -111,7 +118,10 @@ fn main() -> glib::ExitCode {
         return glib::ExitCode::FAILURE;
     }
 
-    let app = adw::Application::builder().application_id(APP_ID).build();
+    let app = adw::Application::builder()
+        .application_id(APP_ID)
+        .flags(gio::ApplicationFlags::HANDLES_OPEN)
+        .build();
     let window: Rc<RefCell<Option<Rc<window::Window>>>> = Rc::new(RefCell::new(None));
     let settings = Rc::new(RefCell::new(None::<settings::Settings>));
     let devices = Rc::new(RefCell::new(None::<Rc<devices::DeviceManager>>));
@@ -136,20 +146,20 @@ fn main() -> glib::ExitCode {
         }
     });
 
-    app.connect_activate({
+    // One window per app, created on the first activation or file open. A
+    // second launch (e.g. "Open With" while the app runs) is forwarded here.
+    let get_window = {
         let (window, settings, devices) = (window.clone(), settings.clone(), devices.clone());
         let dev = opts.dev.clone();
         let test_source = opts.test_source || matches!(dev, Some((DevMode::SelfTest, _)));
-        move |app| {
+        Rc::new(move |app: &adw::Application| -> Rc<window::Window> {
             if let Some(w) = window.borrow().as_ref() {
-                w.window.present();
-                return;
+                return w.clone();
             }
             let dm = devices::DeviceManager::new(test_source);
             dm.start();
             *devices.borrow_mut() = Some(dm.clone());
             let w = window::Window::new(app, settings.borrow().clone().unwrap(), dm);
-            w.window.present();
             let slot = window.clone();
             w.window.connect_destroy(move |_| {
                 slot.borrow_mut().take();
@@ -160,9 +170,23 @@ fn main() -> glib::ExitCode {
                 Some((DevMode::Probe, dir)) => selftest::probe(app, &w, dir.clone()),
                 Some((DevMode::RecordTest, _)) => selftest::record_test(app, &w, 4),
                 Some((DevMode::UiTour, dir)) => selftest::ui_tour(app, &w, dir.clone()),
+                Some((DevMode::Snapshot, dir)) => selftest::snapshot(app, &w, dir.clone()),
                 None => {}
             }
-            *window.borrow_mut() = Some(w);
+            *window.borrow_mut() = Some(w.clone());
+            w
+        })
+    };
+    app.connect_activate({
+        let get_window = get_window.clone();
+        move |app| get_window(app).window.present()
+    });
+    app.connect_open({
+        let get_window = get_window.clone();
+        move |app, files, _hint| {
+            let w = get_window(app);
+            w.open_files(files);
+            w.window.present();
         }
     });
 
@@ -181,7 +205,10 @@ fn main() -> glib::ExitCode {
     let argv0 = std::env::args()
         .next()
         .unwrap_or_else(|| "camera-studio".into());
-    app.run_with_args(&[argv0])
+    let args: Vec<String> = std::iter::once(argv0)
+        .chain(opts.files.iter().cloned())
+        .collect();
+    app.run_with_args(&args)
 }
 
 fn setup_app_actions(app: &adw::Application, window: &Rc<RefCell<Option<Rc<window::Window>>>>) {

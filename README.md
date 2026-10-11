@@ -24,6 +24,9 @@ Author: [Hồ Sỹ Thế](https://github.com/hsthe29) · Source: <https://github
 - 3×3 grid, mirrored viewfinder, fullscreen, FPS overlay (also shows whether decoding runs on the GPU or the CPU)
 - Built-in **gallery**: cached thumbnails, photo viewer, **video player** (GPU decoding), move to trash, copy,
   open with another app
+- **Video player for the desktop**: registered for MP4, WebM, MKV and MOV, so videos open from the file manager
+  ("Open With…" or double-click); the camera stays off while you watch, and the other media of the folder can be
+  browsed
 - Settings live in `~/.config/camera-studio/settings.json`; photos go to `~/Pictures/Camera`, videos to
   `~/Videos/Camera`
 
@@ -38,8 +41,12 @@ git clone https://github.com/hsthe29/camera-studio.git && cd camera-studio
 ./install.sh            # release build, installed to ~/.local (no sudo), added to the app menu
 camera-studio           # run
 camera-studio -t        # add a test video source (no camera needed)
+camera-studio clip.mp4  # play a video (or show a photo) without turning the camera on
 ./uninstall.sh          # remove (keeps photos, videos and settings)
 ```
+
+`install.sh` makes Camera Studio the default player only for video formats that have no default application
+yet; `uninstall.sh` removes those defaults again.
 
 Without VA-API the app falls back to CPU decoding/encoding (jpegdec, openh264/vp8); hardware acceleration can
 also be turned off in Preferences → Performance.

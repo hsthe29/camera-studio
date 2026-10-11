@@ -180,6 +180,12 @@ impl VideoPlayer {
         self.set_playing(false);
     }
 
+    pub fn play(self: &Rc<Self>) {
+        if !self.playing.get() {
+            self.toggle();
+        }
+    }
+
     pub fn toggle(self: &Rc<Self>) {
         let Some(p) = self.playbin.borrow().clone() else {
             return;

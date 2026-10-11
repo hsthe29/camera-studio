@@ -647,3 +647,37 @@ pub fn ui_tour(app: &adw::Application, w: &Rc<Window>, dir: PathBuf) {
         app.quit();
     });
 }
+
+/// `--snapshot DIR`: screenshot the window after CAMERA_STUDIO_SNAPSHOT_MS
+/// (default 3000) and quit — e.g. to check how opened files are shown.
+pub fn snapshot(app: &adw::Application, w: &Rc<Window>, dir: PathBuf) {
+    let ms = std::env::var("CAMERA_STUDIO_SNAPSHOT_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3000);
+    let w = w.clone();
+    let app = app.clone();
+    glib::timeout_add_local_once(Duration::from_millis(ms), move || {
+        screenshot(&w, &dir.join("snapshot.png"));
+        println!(
+            "camera running={} viewer={:?}",
+            w.camera.is_running(),
+            w.viewer.current().map(|m| m.name())
+        );
+        if std::env::var_os("CAMERA_STUDIO_SNAPSHOT_BACK").is_none() {
+            app.quit();
+            return;
+        }
+        // Then go back to the camera page: the camera must start normally.
+        w.nav.pop_to_tag("camera");
+        glib::timeout_add_local_once(Duration::from_secs(4), move || {
+            println!(
+                "after going back: camera running={} active={} fps={:.1}",
+                w.camera.is_running(),
+                w.camera.is_active(),
+                w.camera.fps()
+            );
+            app.quit();
+        });
+    });
+}

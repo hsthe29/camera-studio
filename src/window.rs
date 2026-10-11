@@ -864,8 +864,12 @@ impl Window {
             self,
             move |_| {
                 this.page_visible.set(true);
-                if this.current.borrow().is_some() && !this.camera.is_running() {
-                    this.restart_current();
+                if !this.camera.is_running() {
+                    if this.current.borrow().is_some() {
+                        this.restart_current();
+                    } else {
+                        this.initial_start();
+                    }
                 }
                 let v = this.view.clone();
                 glib::idle_add_local_once(move || {
@@ -1250,6 +1254,11 @@ impl Window {
 
     fn initial_start(self: &Rc<Self>) {
         self.rebuild_camera_menu();
+        // Opened to view files: leave the camera alone (not even its control
+        // node) until the camera page is shown.
+        if !self.page_visible.get() {
+            return;
+        }
         let key = self.settings.get().camera.clone();
         match self.devices.preferred(key.as_deref()) {
             Some(cam) => self.start_camera(&cam, None),
@@ -2115,6 +2124,50 @@ impl Window {
         }
         self.viewer.show_items(items, 0);
         self.show_viewer();
+    }
+
+    /// Open media files handed over by the desktop (e.g. "Open With" in Files).
+    ///
+    /// The viewer opens straight away and starts playing; the camera is not
+    /// turned on until the user goes back to the camera page. With a single
+    /// file, the other photos and videos of its folder can be browsed too.
+    pub fn open_files(self: &Rc<Self>, files: &[gio::File]) {
+        let paths: Vec<PathBuf> = files.iter().filter_map(|f| f.path()).collect();
+        let as_media = |p: &PathBuf| -> Option<storage::MediaFile> {
+            let meta = std::fs::metadata(p).ok()?;
+            Some(storage::MediaFile {
+                path: p.clone(),
+                is_video: storage::classify(p)?,
+                mtime: meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+                size: meta.len(),
+            })
+        };
+        let (items, index) = match paths.as_slice() {
+            [] => return,
+            [single] => {
+                let siblings = single
+                    .parent()
+                    .map(|d| storage::list_media(&[d.to_path_buf()]))
+                    .unwrap_or_default();
+                match siblings.iter().position(|m| m.path == *single) {
+                    Some(i) => (siblings, i),
+                    None => (as_media(single).into_iter().collect(), 0),
+                }
+            }
+            many => (many.iter().filter_map(as_media).collect(), 0),
+        };
+        if items.is_empty() {
+            self.toast("This file type is not supported", 3);
+            return;
+        }
+        // Mark the camera page hidden *before* the deferred camera start runs.
+        self.page_visible.set(false);
+        self.viewer.show_items(items, index);
+        if self.viewer.page.parent().is_none() {
+            self.nav
+                .replace(&[self.camera_page.clone(), self.viewer.page.clone()]);
+        }
+        self.viewer.play_current();
     }
 
     /// Show the viewer with the gallery below it (so "back" lands in the gallery).

@@ -511,6 +511,13 @@ impl ViewerPage {
         }
     }
 
+    /// Start playing if the current item is a video (used when opening files).
+    pub fn play_current(self: &Rc<Self>) {
+        if self.current().is_some_and(|m| m.is_video) {
+            self.player.play();
+        }
+    }
+
     pub fn select_first_video(self: &Rc<Self>) -> bool {
         let pos = self.items.borrow().iter().position(|m| m.is_video);
         if let Some(i) = pos {
