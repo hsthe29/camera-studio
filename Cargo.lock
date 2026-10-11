@@ -63,7 +63,7 @@ dependencies = [
 
 [[package]]
 name = "camera-studio"
-version = "1.0.0"
+version = "1.0.1-dev"
 dependencies = [
  "anyhow",
  "async-channel",

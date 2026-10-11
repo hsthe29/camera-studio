@@ -1,6 +1,6 @@
 [package]
 name = "camera-studio"
-version = "1.0.0"
+version = "1.0.1-dev"
 edition = "2024"
 description = "A fast, GPU-accelerated camera app for the Linux desktop"
 authors = ["Hồ Sỹ Thế"]

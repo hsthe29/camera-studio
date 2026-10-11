@@ -9,6 +9,8 @@ pub const AUTHOR: &str = "Hồ Sỹ Thế";
 pub const AUTHOR_URL: &str = "https://github.com/hsthe29";
 pub const REPOSITORY: &str = "https://github.com/hsthe29/camera-studio";
 
+/// Version the release notes below describe (the latest release).
+const RELEASE_NOTES_VERSION: &str = "1.0.0";
 const RELEASE_NOTES: &str = "\
 <p>First release.</p>
 <ul>
@@ -35,7 +37,7 @@ pub fn show(parent: Option<&gtk::Window>, window: Option<&Window>) {
             "A GPU-accelerated camera app for the Linux desktop: photos, videos, QR code \
              scanning, 26 live effects and webcam hardware controls.",
         )
-        .release_notes_version(VERSION)
+        .release_notes_version(RELEASE_NOTES_VERSION)
         .release_notes(RELEASE_NOTES)
         .debug_info(debug_info(window))
         .debug_info_filename("camera-studio-debug.txt")
