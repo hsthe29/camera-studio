@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Camera Studio
+GenericName=Camera
+Comment=Take photos, record videos and scan QR codes
+Exec=@EXEC@
+Icon=io.github.hsthe29.CameraStudio
+Terminal=false
+Categories=GTK;GNOME;AudioVideo;Video;Recorder;
+Keywords=camera;webcam;photo;picture;video;record;selfie;qr;barcode;
+StartupNotify=true
+SingleMainWindow=true
+DBusActivatable=false

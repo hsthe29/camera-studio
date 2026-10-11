@@ -1,0 +1,263 @@
+/* ---- camera page ------------------------------------------------------ */
+
+.stage {
+  background-color: #000;
+  color: white;
+}
+
+.stage .top-bar {
+  min-height: 46px;
+  padding: 4px 6px;
+  background-color: #0e0e10;
+}
+
+.stage .viewport {
+  background-color: #000;
+}
+
+.stage .bottom-panel {
+  padding: 10px 16px 14px 16px;
+  background-color: #0e0e10;
+}
+
+/* Icon buttons on the dark bars: quiet by default, accent when switched on. */
+.stage button.osd-button,
+.stage menubutton.osd-button > button {
+  color: alpha(white, 0.9);
+  background: none;
+  min-height: 34px;
+  min-width: 34px;
+  padding: 0 8px;
+  border-radius: 10px;
+}
+
+.stage button.osd-button:hover,
+.stage menubutton.osd-button > button:hover {
+  background-color: alpha(white, 0.10);
+}
+
+.stage button.osd-button:checked,
+.stage menubutton.osd-button > button:checked {
+  color: @accent_color;
+  background-color: alpha(white, 0.12);
+}
+
+.stage button.osd-button:disabled,
+.stage menubutton.osd-button > button:disabled {
+  color: alpha(white, 0.35);
+}
+
+.stage windowcontrols button {
+  color: white;
+}
+
+/* Round controls of the bottom panel (effects, switch camera, snapshot). */
+.stage button.round-control {
+  min-width: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 999px;
+  color: white;
+  background-color: alpha(white, 0.10);
+}
+
+.stage button.round-control:hover { background-color: alpha(white, 0.18); }
+
+.stage button.round-control:checked {
+  color: @accent_fg_color;
+  background-color: @accent_bg_color;
+}
+
+/* shutter ---------------------------------------------------------------- */
+
+button.shutter {
+  min-width: 70px;
+  min-height: 70px;
+  padding: 0;
+  border-radius: 999px;
+  background: none;
+  box-shadow: inset 0 0 0 4px white;
+  transition: all 150ms ease-out;
+}
+
+button.shutter > .shutter-core {
+  min-width: 54px;
+  min-height: 54px;
+  margin: 8px;
+  border-radius: 999px;
+  background-color: white;
+  transition: all 200ms ease-out;
+}
+
+button.shutter:hover > .shutter-core { background-color: alpha(white, 0.85); }
+button.shutter:active > .shutter-core { min-width: 46px; min-height: 46px; margin: 12px; }
+
+button.shutter.video > .shutter-core { background-color: #e01b24; }
+button.shutter.video:hover > .shutter-core { background-color: #f03b44; }
+
+button.shutter.recording > .shutter-core {
+  min-width: 26px;
+  min-height: 26px;
+  margin: 22px;
+  border-radius: 6px;
+  background-color: #e01b24;
+}
+
+button.shutter.qr > .shutter-core { background-color: alpha(white, 0.3); }
+button.shutter:disabled { opacity: 0.5; }
+button.shutter.countdown > .shutter-core { background-color: #f6d32d; }
+
+/* gallery button ------------------------------------------------------------ */
+
+button.gallery-button {
+  min-width: 52px;
+  min-height: 52px;
+  padding: 0;
+  border-radius: 12px;
+  background-color: alpha(white, 0.08);
+  box-shadow: inset 0 0 0 2px alpha(white, 0.75);
+}
+
+button.gallery-button:hover { box-shadow: inset 0 0 0 2px white; }
+
+button.gallery-button overlay > widget {
+  border-radius: 10px;
+  margin: 2px;
+}
+
+/* capture mode + zoom ------------------------------------------------------------ */
+
+.stage .mode-switch {
+  background-color: alpha(white, 0.08);
+  color: white;
+}
+
+.stage .mode-switch toggle {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.stage .mode-switch toggle:checked {
+  background-color: white;
+  color: black;
+}
+
+.chip {
+  background-color: alpha(white, 0.08);
+  color: white;
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.chip button { min-height: 30px; min-width: 30px; padding: 0; color: white; }
+.chip button.zoom-value { font-weight: bold; min-width: 44px; }
+.chip button.zoom-value.zoomed { color: @accent_fg_color; background-color: @accent_bg_color; }
+
+/* overlays ------------------------------------------------------------------------ */
+
+.flash { background-color: white; }
+
+.countdown-bubble {
+  min-width: 160px;
+  min-height: 160px;
+  border-radius: 999px;
+  background-color: alpha(black, 0.45);
+}
+
+.countdown {
+  font-size: 96px;
+  font-weight: 800;
+  color: white;
+}
+
+.rec-indicator {
+  box-shadow: 0 2px 8px alpha(black, 0.4);
+  background-color: #c01c28;
+  color: white;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-weight: bold;
+}
+
+.rec-indicator .rec-dot {
+  min-width: 10px;
+  min-height: 10px;
+  border-radius: 999px;
+  background-color: white;
+}
+
+.rec-indicator.saving { background-color: alpha(white, 0.15); }
+
+.info-label {
+  background-color: alpha(black, 0.55);
+  color: white;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 0.85em;
+}
+
+.status-overlay {
+  background-color: alpha(black, 0.75);
+  color: white;
+}
+
+.status-overlay statuspage { color: white; }
+
+.qr-card {
+  background-color: alpha(#1e1e1e, 0.94);
+  color: white;
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 12px alpha(black, 0.4);
+}
+
+.qr-card .qr-text { font-family: monospace; }
+
+/* effects strip ---------------------------------------------------------------- */
+
+.effects-strip {
+  padding: 2px 2px 4px 2px;
+}
+
+.effects-strip button.effect {
+  padding: 4px;
+  border-radius: 12px;
+  background: none;
+  color: alpha(white, 0.85);
+}
+
+.effects-strip button.effect:hover { background-color: alpha(white, 0.08); color: white; }
+
+.effects-strip button.effect .effect-thumb {
+  border-radius: 8px;
+  background-color: alpha(white, 0.08);
+  box-shadow: inset 0 0 0 1px alpha(white, 0.15);
+}
+
+.effects-strip button.effect:checked { color: white; font-weight: bold; }
+
+.effects-strip button.effect:checked .effect-thumb {
+  box-shadow: 0 0 0 3px @accent_bg_color;
+}
+
+.effects-strip button.effect label { font-size: 0.8em; }
+
+/* gallery / viewer --------------------------------------------------------------- */
+
+.gallery-grid { padding: 8px; }
+.gallery-grid > child { padding: 4px; border-radius: 12px; }
+.gallery-tile { border-radius: 10px; background-color: alpha(currentColor, 0.08); }
+
+.video-badge {
+  margin: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background-color: alpha(black, 0.6);
+  color: white;
+}
+
+.viewer { background-color: black; }
+.nav-button { margin: 12px; min-width: 42px; min-height: 42px; }
+.player-bar { border-radius: 14px; padding: 4px 8px; }
+
+.controls-panel { background-color: @sidebar_bg_color; }
