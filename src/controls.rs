@@ -10,12 +10,101 @@ use crate::devices::Camera;
 use crate::settings::Settings;
 use crate::v4l2;
 
-const USER_CLASS: u32 = 0x0098_0000;
+// V4L2 control ids (linux/v4l2-controls.h).
+const CID_BRIGHTNESS: u32 = 0x0098_0900;
+const CID_CONTRAST: u32 = 0x0098_0901;
+const CID_SATURATION: u32 = 0x0098_0902;
+const CID_HUE: u32 = 0x0098_0903;
+const CID_AUTO_WHITE_BALANCE: u32 = 0x0098_090c;
+const CID_RED_BALANCE: u32 = 0x0098_090e;
+const CID_BLUE_BALANCE: u32 = 0x0098_090f;
+const CID_GAMMA: u32 = 0x0098_0910;
+const CID_EXPOSURE: u32 = 0x0098_0911;
+const CID_AUTOGAIN: u32 = 0x0098_0912;
+const CID_GAIN: u32 = 0x0098_0913;
+const CID_HUE_AUTO: u32 = 0x0098_0919;
+const CID_WHITE_BALANCE_TEMPERATURE: u32 = 0x0098_091a;
+const CID_SHARPNESS: u32 = 0x0098_091b;
+const CID_BACKLIGHT_COMPENSATION: u32 = 0x0098_091c;
+const CID_EXPOSURE_AUTO: u32 = 0x009a_0901;
+const CID_EXPOSURE_ABSOLUTE: u32 = 0x009a_0902;
+const CID_EXPOSURE_AUTO_PRIORITY: u32 = 0x009a_0903;
+const CID_PAN_ABSOLUTE: u32 = 0x009a_0908;
+const CID_TILT_ABSOLUTE: u32 = 0x009a_0909;
+const CID_FOCUS_ABSOLUTE: u32 = 0x009a_090a;
+const CID_FOCUS_AUTO: u32 = 0x009a_090c;
+const CID_ZOOM_ABSOLUTE: u32 = 0x009a_090d;
+
+/// Controls grouped by what they do, in display order. Anything a camera
+/// offers that is not listed here ends up in "Other".
+const GROUPS: &[(&str, &[u32])] = &[
+    (
+        "Exposure",
+        &[
+            CID_EXPOSURE_AUTO,
+            CID_EXPOSURE_ABSOLUTE,
+            CID_EXPOSURE,
+            CID_EXPOSURE_AUTO_PRIORITY,
+            CID_AUTOGAIN,
+            CID_GAIN,
+            CID_BACKLIGHT_COMPENSATION,
+        ],
+    ),
+    (
+        "Color",
+        &[
+            CID_AUTO_WHITE_BALANCE,
+            CID_WHITE_BALANCE_TEMPERATURE,
+            CID_RED_BALANCE,
+            CID_BLUE_BALANCE,
+            CID_SATURATION,
+            CID_HUE_AUTO,
+            CID_HUE,
+        ],
+    ),
+    (
+        "Image",
+        &[CID_BRIGHTNESS, CID_CONTRAST, CID_GAMMA, CID_SHARPNESS],
+    ),
+    (
+        "Focus &amp; Zoom",
+        &[
+            CID_FOCUS_AUTO,
+            CID_FOCUS_ABSOLUTE,
+            CID_ZOOM_ABSOLUTE,
+            CID_PAN_ABSOLUTE,
+            CID_TILT_ABSOLUTE,
+        ],
+    ),
+];
+
+/// Value as shown next to a slider, with a unit where the kernel defines one.
+fn format_value(id: u32, value: i32) -> String {
+    match id {
+        // 100 µs units
+        CID_EXPOSURE_ABSOLUTE => {
+            let ms = value as f64 / 10.0;
+            if ms < 10.0 {
+                format!("{ms:.1} ms")
+            } else {
+                format!("{ms:.0} ms")
+            }
+        }
+        CID_WHITE_BALANCE_TEMPERATURE => format!("{value} K"),
+        _ => value.to_string(),
+    }
+}
+
+struct SliderRow {
+    row: adw::PreferencesRow,
+    scale: gtk::Scale,
+    value: gtk::Label,
+}
 
 enum RowKind {
     Switch(adw::SwitchRow),
     Combo(adw::ComboRow, Vec<i32>),
-    Scale(adw::ActionRow, gtk::Scale),
+    Slider(SliderRow),
 }
 
 impl RowKind {
@@ -23,10 +112,12 @@ impl RowKind {
         match self {
             RowKind::Switch(r) => r.clone().upcast(),
             RowKind::Combo(r, _) => r.clone().upcast(),
-            RowKind::Scale(r, _) => r.clone().upcast(),
+            RowKind::Slider(s) => s.row.clone().upcast(),
         }
     }
 }
+
+type CloseHandler = Box<dyn Fn()>;
 
 pub struct ControlsPanel {
     pub widget: gtk::Box,
@@ -38,8 +129,9 @@ pub struct ControlsPanel {
     groups: RefCell<Vec<adw::PreferencesGroup>>,
     page: adw::PreferencesPage,
     stack: gtk::Stack,
-    reset: gtk::Button,
+    reset_group: adw::PreferencesGroup,
     updating: Cell<bool>,
+    on_close: RefCell<Option<CloseHandler>>,
 }
 
 impl ControlsPanel {
@@ -52,14 +144,26 @@ impl ControlsPanel {
             .build();
         header.add_css_class("flat");
         header.set_title_widget(Some(&adw::WindowTitle::new("Camera Controls", "")));
-        let reset = gtk::Button::builder()
-            .icon_name("edit-undo-symbolic")
-            .tooltip_text("Reset to Defaults")
+        let close = gtk::Button::builder()
+            .icon_name("window-close-symbolic")
+            .tooltip_text("Close (K)")
             .build();
-        header.pack_start(&reset);
+        close.add_css_class("flat");
+        close.add_css_class("circular");
+        header.pack_end(&close);
         widget.append(&header);
+
         let stack = gtk::Stack::builder().vexpand(true).build();
         let page = adw::PreferencesPage::new();
+        // Reset sits at the bottom, spelled out, away from the header (an
+        // icon-only reset in the corner was easy to mistake for "back").
+        let reset_group = adw::PreferencesGroup::new();
+        let reset = adw::ButtonRow::builder()
+            .title("Reset All to Defaults")
+            .start_icon_name("edit-undo-symbolic")
+            .build();
+        reset_group.add(&reset);
+        page.add(&reset_group);
         stack.add_named(&page, Some("controls"));
         let empty = adw::StatusPage::builder()
             .icon_name("camera-web-symbolic")
@@ -69,6 +173,7 @@ impl ControlsPanel {
         empty.add_css_class("compact");
         stack.add_named(&empty, Some("empty"));
         widget.append(&stack);
+
         let this = Rc::new(Self {
             widget,
             settings: settings.clone(),
@@ -79,15 +184,30 @@ impl ControlsPanel {
             groups: RefCell::new(Vec::new()),
             page,
             stack,
-            reset,
+            reset_group,
             updating: Cell::new(false),
+            on_close: RefCell::new(None),
         });
-        this.reset.connect_clicked(glib::clone!(
+        reset.connect_activated(glib::clone!(
             #[weak]
             this,
             move |_| this.reset_all()
         ));
+        close.connect_clicked(glib::clone!(
+            #[weak]
+            this,
+            move |_| {
+                if let Some(f) = this.on_close.borrow().as_ref() {
+                    f();
+                }
+            }
+        ));
         this
+    }
+
+    /// Called when the panel's close button is pressed.
+    pub fn connect_close(&self, f: impl Fn() + 'static) {
+        *self.on_close.borrow_mut() = Some(Box::new(f));
     }
 
     pub fn camera_key(&self) -> Option<String> {
@@ -144,31 +264,48 @@ impl ControlsPanel {
         self.rows.borrow_mut().clear();
         if self.controls.borrow().is_empty() {
             self.stack.set_visible_child_name("empty");
-            self.reset.set_sensitive(false);
             return;
         }
         self.stack.set_visible_child_name("controls");
-        self.reset.set_sensitive(true);
-        let camera_group = adw::PreferencesGroup::builder()
-            .title("Exposure &amp; Focus")
-            .build();
-        let image_group = adw::PreferencesGroup::builder().title("Image").build();
-        for c in self.controls.borrow().iter() {
-            let Some(row) = self.make_row(c) else {
-                continue;
-            };
-            let target = if c.id & 0xFFFF_0000 == USER_CLASS {
-                &image_group
-            } else {
-                &camera_group
-            };
-            target.add(&row.widget());
-            self.rows.borrow_mut().push((c.id, row));
+
+        let controls = self.controls.borrow().clone();
+        let known: Vec<u32> = GROUPS
+            .iter()
+            .flat_map(|(_, ids)| ids.iter().copied())
+            .collect();
+        let mut sections: Vec<(&str, Vec<&v4l2::Ctrl>)> = GROUPS
+            .iter()
+            .map(|(title, ids)| {
+                let members = ids
+                    .iter()
+                    .filter_map(|id| controls.iter().find(|c| c.id == *id))
+                    .collect();
+                (*title, members)
+            })
+            .collect();
+        sections.push((
+            "Other",
+            controls.iter().filter(|c| !known.contains(&c.id)).collect(),
+        ));
+
+        // Groups go above the reset button, which stays last.
+        self.page.remove(&self.reset_group);
+        for (title, members) in sections {
+            let group = adw::PreferencesGroup::builder().title(title).build();
+            let mut any = false;
+            for c in members {
+                if let Some(row) = self.make_row(c) {
+                    group.add(&row.widget());
+                    self.rows.borrow_mut().push((c.id, row));
+                    any = true;
+                }
+            }
+            if any {
+                self.page.add(&group);
+                self.groups.borrow_mut().push(group);
+            }
         }
-        for g in [camera_group, image_group] {
-            self.page.add(&g);
-            self.groups.borrow_mut().push(g);
-        }
+        self.page.add(&self.reset_group);
         self.refresh();
     }
 
@@ -204,41 +341,70 @@ impl ControlsPanel {
                 ));
                 Some(RowKind::Combo(row, values))
             }
-            v4l2::TYPE_INTEGER => {
-                let row = adw::ActionRow::builder().title(&title).build();
-                let step = c.step.max(1) as f64;
-                let adj = gtk::Adjustment::new(
-                    c.default as f64,
-                    c.minimum as f64,
-                    c.maximum as f64,
-                    step,
-                    step * 10.0,
-                    0.0,
-                );
-                let scale = gtk::Scale::builder()
-                    .adjustment(&adj)
-                    .digits(0)
-                    .draw_value(true)
-                    .value_pos(gtk::PositionType::Left)
-                    .hexpand(true)
-                    .valign(gtk::Align::Center)
-                    .build();
-                scale.set_size_request(150, -1);
-                scale.add_mark(c.default as f64, gtk::PositionType::Bottom, None);
-                let (min, st) = (c.minimum, c.step.max(1));
-                scale.connect_value_changed(glib::clone!(
-                    #[weak(rename_to = this)]
-                    self,
-                    move |s| {
-                        let v = min + ((s.value() - min as f64) / st as f64).round() as i32 * st;
-                        this.set(&ctrl, v);
-                    }
-                ));
-                row.add_suffix(&scale);
-                Some(RowKind::Scale(row, scale))
-            }
+            v4l2::TYPE_INTEGER => Some(RowKind::Slider(self.make_slider(c, &title))),
             _ => None,
         }
+    }
+
+    /// Name and value on one line, a full-width slider below: every slider
+    /// starts at the same place whatever the length of its name.
+    fn make_slider(self: &Rc<Self>, c: &v4l2::Ctrl, title: &str) -> SliderRow {
+        let row = adw::PreferencesRow::builder()
+            .title(title)
+            .activatable(false)
+            .build();
+        let content = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(2)
+            .margin_top(10)
+            .margin_bottom(4)
+            .margin_start(12)
+            .margin_end(12)
+            .build();
+        let head = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        let name = gtk::Label::builder()
+            .label(title)
+            .xalign(0.0)
+            .hexpand(true)
+            .ellipsize(gtk::pango::EllipsizeMode::End)
+            .build();
+        let value = gtk::Label::new(None);
+        value.add_css_class("dim-label");
+        value.add_css_class("numeric");
+        head.append(&name);
+        head.append(&value);
+        let step = c.step.max(1) as f64;
+        let adj = gtk::Adjustment::new(
+            c.default as f64,
+            c.minimum as f64,
+            c.maximum as f64,
+            step,
+            step * 10.0,
+            0.0,
+        );
+        let scale = gtk::Scale::builder()
+            .adjustment(&adj)
+            .digits(0)
+            .draw_value(false)
+            .hexpand(true)
+            .build();
+        content.append(&head);
+        content.append(&scale);
+        row.set_child(Some(&content));
+
+        let ctrl = c.clone();
+        let label = value.clone();
+        let (min, st) = (c.minimum, c.step.max(1));
+        scale.connect_value_changed(glib::clone!(
+            #[weak(rename_to = this)]
+            self,
+            move |s| {
+                let v = min + ((s.value() - min as f64) / st as f64).round() as i32 * st;
+                label.set_label(&format_value(ctrl.id, v));
+                this.set(&ctrl, v);
+            }
+        ));
+        SliderRow { row, scale, value }
     }
 
     fn set(self: &Rc<Self>, c: &v4l2::Ctrl, value: i32) {
@@ -277,7 +443,8 @@ impl ControlsPanel {
             let (Some(fresh), Ok(value)) = (dev.query(*id), dev.get(*id)) else {
                 continue;
             };
-            row.widget().set_sensitive(!fresh.inactive());
+            let auto = fresh.inactive();
+            row.widget().set_sensitive(!auto);
             match row {
                 RowKind::Switch(r) => r.set_active(value != 0),
                 RowKind::Combo(r, values) => {
@@ -285,7 +452,15 @@ impl ControlsPanel {
                         r.set_selected(i as u32);
                     }
                 }
-                RowKind::Scale(_, s) => s.set_value(value as f64),
+                RowKind::Slider(s) => {
+                    s.scale.set_value(value as f64);
+                    // Greyed out because an automatic mode drives it: say so.
+                    s.value.set_label(&if auto {
+                        "Auto".to_string()
+                    } else {
+                        format_value(*id, value)
+                    });
+                }
             }
         }
         self.updating.set(false);
@@ -305,5 +480,30 @@ impl ControlsPanel {
             });
         }
         self.refresh();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn values_get_units() {
+        assert_eq!(format_value(CID_EXPOSURE_ABSOLUTE, 156), "16 ms");
+        assert_eq!(format_value(CID_EXPOSURE_ABSOLUTE, 33), "3.3 ms");
+        assert_eq!(format_value(CID_WHITE_BALANCE_TEMPERATURE, 4600), "4600 K");
+        assert_eq!(format_value(CID_BRIGHTNESS, 128), "128");
+    }
+
+    #[test]
+    fn groups_do_not_overlap() {
+        let mut ids: Vec<u32> = GROUPS
+            .iter()
+            .flat_map(|(_, ids)| ids.iter().copied())
+            .collect();
+        let n = ids.len();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), n);
     }
 }

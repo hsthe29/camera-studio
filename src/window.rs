@@ -97,7 +97,7 @@ pub struct Window {
     pub nav: adw::NavigationView,
     camera_page: adw::NavigationPage,
     view: Viewfinder,
-    split: adw::OverlaySplitView,
+    pub split: adw::OverlaySplitView,
     flash: gtk::Box,
     countdown_box: gtk::Box,
     countdown_label: gtk::Label,
@@ -859,6 +859,12 @@ impl Window {
                 }
             }
         ));
+        let split = self.split.downgrade();
+        self.controls.connect_close(move || {
+            if let Some(s) = split.upgrade() {
+                s.set_show_sidebar(false);
+            }
+        });
         self.camera_page.connect_showing(glib::clone!(
             #[weak(rename_to = this)]
             self,

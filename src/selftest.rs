@@ -33,6 +33,38 @@ pub fn prepare_environment(dir: &Path) {
     );
 }
 
+/// First widget of type `T` below `root`.
+fn find_widget<T: IsA<gtk::Widget>>(root: &gtk::Widget) -> Option<T> {
+    if let Some(w) = root.downcast_ref::<T>() {
+        return Some(w.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(c) = child {
+        if let Some(w) = find_widget::<T>(&c) {
+            return Some(w);
+        }
+        child = c.next_sibling();
+    }
+    None
+}
+
+/// First button below `root` whose tooltip is `tooltip`.
+fn find_button(root: &gtk::Widget, tooltip: &str) -> Option<gtk::Button> {
+    if let Some(b) = root.downcast_ref::<gtk::Button>()
+        && b.tooltip_text().as_deref() == Some(tooltip)
+    {
+        return Some(b.clone());
+    }
+    let mut child = root.first_child();
+    while let Some(c) = child {
+        if let Some(b) = find_button(&c, tooltip) {
+            return Some(b);
+        }
+        child = c.next_sibling();
+    }
+    None
+}
+
 fn screenshot(w: &Window, path: &Path) -> bool {
     let win = &w.window;
     let (width, height) = (win.width(), win.height());
@@ -620,7 +652,28 @@ pub fn ui_tour(app: &adw::Application, w: &Rc<Window>, dir: PathBuf) {
             act(&w, "win.controls", None);
             wait(800).await;
             shot(&w, &format!("g_controls{suffix}"));
-            act(&w, "win.controls", None);
+            if let Some(sw) = find_widget::<gtk::ScrolledWindow>(w.controls.widget.upcast_ref()) {
+                let adj = sw.vadjustment();
+                adj.set_value(adj.upper());
+                wait(400).await;
+                shot(&w, &format!("g_controls_end{suffix}"));
+                adj.set_value(0.0);
+            }
+            // The panel's own close button must hide it (also when it floats
+            // over the picture in a narrow window).
+            let close = find_button(w.controls.widget.upcast_ref(), "Close (K)");
+            if let Some(b) = &close {
+                b.emit_clicked();
+            }
+            wait(500).await;
+            println!(
+                "controls{suffix}: close button found={} panel closed={}",
+                close.is_some(),
+                !w.split.shows_sidebar()
+            );
+            if w.split.shows_sidebar() {
+                act(&w, "win.controls", None);
+            }
             w.set_zoom(2.5);
             wait(600).await;
             shot(&w, &format!("h_zoom{suffix}"));
