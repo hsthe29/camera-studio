@@ -158,10 +158,7 @@ impl ControlsPanel {
         // Reset sits at the bottom, spelled out, away from the header (an
         // icon-only reset in the corner was easy to mistake for "back").
         let reset_group = adw::PreferencesGroup::new();
-        let reset = adw::ButtonRow::builder()
-            .title("Reset All to Defaults")
-            .start_icon_name("edit-undo-symbolic")
-            .build();
+        let reset = crate::compat::button_row("Reset All to Defaults", "edit-undo-symbolic");
         reset_group.add(&reset);
         page.add(&reset_group);
         stack.add_named(&page, Some("controls"));

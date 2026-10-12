@@ -11,9 +11,15 @@ readme = "README.md"
 keywords = ["camera", "webcam", "gtk4", "gstreamer", "linux"]
 categories = ["multimedia::video", "gui"]
 
+[features]
+# Real GTK 4.20 / libadwaita 1.8 widgets (Ubuntu 26.04+). install.sh turns this
+# off for older systems such as Ubuntu 24.04, which use src/compat.rs fallbacks.
+default = ["modern"]
+modern = ["gtk/v4_20", "adw/v1_8"]
+
 [dependencies]
-gtk = { package = "gtk4", version = "0.11", features = ["v4_20"] }
-adw = { package = "libadwaita", version = "0.9", features = ["v1_8"] }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_5"] }
 gst = { package = "gstreamer", version = "0.25", features = ["v1_24"] }
 gst-app = { package = "gstreamer-app", version = "0.25" }
 gst-video = { package = "gstreamer-video", version = "0.25" }

@@ -10,6 +10,7 @@ use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
 use crate::camera::{self, CameraPipeline, ErrorKind, Event, RecordOptions};
+use crate::compat::ToggleGroup;
 use crate::controls::ControlsPanel;
 use crate::devices::{self, Camera, DeviceManager, Mode};
 use crate::effects;
@@ -101,7 +102,7 @@ pub struct Window {
     flash: gtk::Box,
     countdown_box: gtk::Box,
     countdown_label: gtk::Label,
-    spinner: adw::Spinner,
+    spinner: crate::compat::Spinner,
     status_box: gtk::Box,
     status_page: adw::StatusPage,
     test_button: gtk::Button,
@@ -124,7 +125,7 @@ pub struct Window {
     effects_refresh: RefCell<Option<glib::SourceId>>,
     previews_busy: Cell<bool>,
     zoom_label: gtk::Button,
-    mode_group: adw::ToggleGroup,
+    mode_group: ToggleGroup,
     gallery_thumb: Viewfinder,
     gallery_placeholder: gtk::Image,
     shutter: gtk::Button,
@@ -208,11 +209,7 @@ impl Window {
         countdown_box.append(&countdown_label);
         viewport.add_overlay(&countdown_box);
 
-        let spinner = adw::Spinner::builder()
-            .halign(gtk::Align::Center)
-            .valign(gtk::Align::Center)
-            .can_target(false)
-            .build();
+        let spinner = crate::compat::spinner();
         spinner.set_size_request(48, 48);
         viewport.add_overlay(&spinner);
 
@@ -518,15 +515,9 @@ impl Window {
         zoom_chip.append(&zoom_label);
         zoom_chip.append(&zoom_in);
         row1.set_start_widget(Some(&zoom_chip));
-        let mode_group = adw::ToggleGroup::builder()
-            .valign(gtk::Align::Center)
-            .build();
-        mode_group.add_css_class("round");
-        mode_group.add_css_class("mode-switch");
-        for (name, label) in MODES {
-            mode_group.add(adw::Toggle::builder().name(name).label(label).build());
-        }
-        row1.set_center_widget(Some(&mode_group));
+        let mode_group = ToggleGroup::new(&MODES);
+        mode_group.widget().add_css_class("mode-switch");
+        row1.set_center_widget(Some(mode_group.widget()));
         bottom.append(&row1);
 
         // Row 2: gallery · shutter · effects/switch camera.
@@ -1907,7 +1898,7 @@ impl Window {
         }));
         self.snapshot_button.set_visible(recording);
         for w in [
-            self.mode_group.upcast_ref::<gtk::Widget>(),
+            self.mode_group.widget(),
             self.camera_button.upcast_ref(),
             self.resolution_button.upcast_ref(),
             self.switch_button.upcast_ref(),

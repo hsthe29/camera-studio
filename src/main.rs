@@ -2,6 +2,7 @@
 
 mod about;
 mod camera;
+mod compat;
 mod controls;
 mod devices;
 mod effects;
@@ -248,7 +249,6 @@ fn setup_app_actions(app: &adw::Application, window: &Rc<RefCell<Option<Rc<windo
 }
 
 fn show_shortcuts(app: &adw::Application) {
-    let dialog = adw::ShortcutsDialog::new();
     let sections: &[(&str, &[(&str, &str)])] = &[
         (
             "Capture",
@@ -295,12 +295,5 @@ fn show_shortcuts(app: &adw::Application) {
             ],
         ),
     ];
-    for (title, items) in sections {
-        let section = adw::ShortcutsSection::new(Some(title));
-        for (label, accel) in *items {
-            section.add(adw::ShortcutsItem::new(label, accel));
-        }
-        dialog.add(section);
-    }
-    dialog.present(app.active_window().as_ref());
+    compat::show_shortcuts(app.active_window().as_ref(), sections);
 }

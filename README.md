@@ -32,9 +32,37 @@ Author: [Hồ Sỹ Thế](https://github.com/hsthe29) · Source: <https://github
 
 ## Installation
 
-Requirements: Rust (`rustup`),
-`build-essential pkg-config libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-gtk4`,
-and for GPU acceleration on Intel: `intel-media-va-driver-non-free`.
+Supported: **Ubuntu 24.04 and newer** (other distros with GTK 4.14+, libadwaita 1.5+ and GStreamer 1.24+ should
+work too). `install.sh` checks all of this and tells you what is missing.
+
+### 1. Dependencies
+
+```sh
+# Build tools and libraries
+sudo apt install build-essential pkg-config libgtk-4-dev libadwaita-1-dev \
+    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-gl gstreamer1.0-pulseaudio
+# Rust 1.85 or newer
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# Optional, GPU acceleration on Intel graphics
+sudo apt install intel-media-va-driver-non-free vainfo
+```
+
+Also needed is the GStreamer plugin **`gtk4paintablesink`**, which shows the picture:
+
+- Where your distro packages it: `sudo apt install gstreamer1.0-gtk4`.
+- **Ubuntu 24.04 has no such package**; build it once from source:
+
+  ```sh
+  . "$HOME/.cargo/env" && cargo install cargo-c
+  git clone https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs.git && cd gst-plugins-rs
+  git checkout 0.13.5     # matches GStreamer 1.24; use the newest 0.13.x tag if this one is missing
+  cargo cinstall -p gst-plugin-gtk4 --prefix=$HOME/.local --libdir=$HOME/.local/lib/gstreamer-1.0
+  echo 'export GST_PLUGIN_PATH=$HOME/.local/lib/gstreamer-1.0' >> ~/.profile   # then log out and in again
+  gst-inspect-1.0 gtk4paintablesink                                            # must print the element
+  ```
+
+### 2. Build and install
 
 ```sh
 git clone https://github.com/hsthe29/camera-studio.git && cd camera-studio
@@ -42,14 +70,28 @@ git clone https://github.com/hsthe29/camera-studio.git && cd camera-studio
 camera-studio           # run
 camera-studio -t        # add a test video source (no camera needed)
 camera-studio clip.mp4  # play a video (or show a photo) without turning the camera on
-./uninstall.sh          # remove (keeps photos, videos and settings)
+./uninstall.sh          # remove (keeps photos, videos and settings; --purge also deletes settings and cache)
 ```
 
-`install.sh` makes Camera Studio the default player only for video formats that have no default application
-yet; `uninstall.sh` removes those defaults again.
+`PREFIX=/some/dir ./install.sh` installs somewhere else (pass the same `PREFIX` to `uninstall.sh`).
 
-Without VA-API the app falls back to CPU decoding/encoding (jpegdec, openh264/vp8); hardware acceleration can
-also be turned off in Preferences → Performance.
+- **Interface by version:** with GTK 4.20 and libadwaita 1.8 (Ubuntu 26.04) `install.sh` builds the full
+  interface. With older versions (Ubuntu 24.04) it builds with `--no-default-features`: the same app, but the
+  mode switch, spinner, reset button and shortcuts dialog use simpler widgets (see `src/compat.rs`).
+- `install.sh` makes Camera Studio the default player only for video formats that have no default application
+  yet; `uninstall.sh` removes those defaults again.
+- Without VA-API the app falls back to CPU decoding/encoding (jpegdec, openh264/vp8); hardware acceleration can
+  also be turned off in Preferences → Performance.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Couldn't find any package by glob 'gstreamer1.0-gtk4'` | Not packaged on Ubuntu 24.04, build the plugin from source (above) |
+| App opens but the picture stays black or is missing | `gtk4paintablesink` not found: run `gst-inspect-1.0 gtk4paintablesink`; if you built it yourself, set `GST_PLUGIN_PATH` in `~/.profile` and log in again |
+| `Missing development files (…)` | Install the packages listed in step 1 |
+| `GTK 4.14 … too old` | Upgrade to Ubuntu 24.04 or newer |
+| `GPU: VA-API not ready` | `sudo apt install vainfo gstreamer1.0-plugins-bad intel-media-va-driver-non-free` (Intel graphics) |
 
 Bug reports: <https://github.com/hsthe29/camera-studio/issues> — please attach the report from
 *About → Troubleshooting* (it has copy and save buttons).

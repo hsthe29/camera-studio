@@ -8,6 +8,7 @@ use std::time::Duration;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
+use crate::compat::ToggleGroup;
 use crate::player::VideoPlayer;
 use crate::storage::{self, MediaFile};
 use crate::thumbnails::ThumbnailCache;
@@ -23,7 +24,7 @@ pub struct GalleryPage {
     filtered: gtk::FilterListModel,
     stack: gtk::Stack,
     count: gtk::Label,
-    pub kind: adw::ToggleGroup,
+    pub kind: ToggleGroup,
     kind_value: Rc<RefCell<String>>,
     thumbs: Rc<ThumbnailCache>,
     dirs: DirsFn,
@@ -81,13 +82,9 @@ impl GalleryPage {
         stack.add_named(&empty, Some("empty"));
 
         let header = adw::HeaderBar::new();
-        let kind = adw::ToggleGroup::new();
-        kind.add_css_class("round");
-        for (name, label) in [("all", "All"), ("photo", "Photos"), ("video", "Videos")] {
-            kind.add(adw::Toggle::builder().name(name).label(label).build());
-        }
+        let kind = ToggleGroup::new(&[("all", "All"), ("photo", "Photos"), ("video", "Videos")]);
         kind.set_active_name(Some("all"));
-        header.set_title_widget(Some(&kind));
+        header.set_title_widget(Some(kind.widget()));
         let folder = gtk::Button::builder()
             .icon_name("folder-open-symbolic")
             .tooltip_text("Open Folder")
@@ -201,10 +198,8 @@ impl GalleryPage {
             #[weak]
             this,
             move |g| {
-                *this.kind_value.borrow_mut() = g
-                    .active_name()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| "all".into());
+                *this.kind_value.borrow_mut() =
+                    g.active_name().unwrap_or_else(|| "all".into());
                 this.filter.changed(gtk::FilterChange::Different);
                 this.update_state();
             }
